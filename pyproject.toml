@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable Pyflakes (F), Pycodestyle (E, W), Isort (I), and Django (DJ)
+select = ["E", "F", "W", "I", "DJ"]
+ignore = ["E501"] # Ignore line length violations (let the formatter handle it)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
