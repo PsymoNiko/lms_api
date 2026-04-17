@@ -3,9 +3,17 @@ from .models import CustomUser, Profile
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Add the full name to the representation
+        representation['full_name'] = f"{instance.user.first_name} {instance.user.last_name}"
+        return representation
     class Meta:
         model = Profile
-        fields = ['avatar', 'bio']
+        fields = ['avatar', 'bio', 'first_name', 'last_name']
 
 
 class UserSerializer(serializers.ModelSerializer):
