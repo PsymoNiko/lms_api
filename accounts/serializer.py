@@ -48,6 +48,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['username', 'email', 'password', 'role']
         extra_kwargs = {'password': {'write_only': True}}
 
+    def validate_role(self, value):
+        if value == "admin":
+            raise serializers.ValidationError(
+                "Public registration cannot create admin accounts."
+            )
+        if value not in ("student", "instructor"):
+            raise serializers.ValidationError("Invalid role.")
+        return value
+
     def create(self, validated_data):
         # create_user hashes the password automatically
         user = CustomUser.objects.create_user(**validated_data)

@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+import os
 from datetime import timedelta
 from pathlib import Path
 from botocore.client import Config
@@ -31,13 +32,17 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
     "accounts",
+    "courses",
+    "channels",
     "rest_framework",
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
@@ -47,6 +52,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -73,12 +79,13 @@ TEMPLATES = [
     },
 ]
 
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer', # Useful for dev
+# Browsable API adds significant overhead; keep it only when DEBUG is on.
+_REST_RENDERERS = ["rest_framework.renderers.JSONRenderer"]
+if DEBUG:
+    _REST_RENDERERS.append("rest_framework.renderers.BrowsableAPIRenderer")
 
-    ],
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": _REST_RENDERERS,
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
@@ -86,24 +93,36 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
-    'PAGE_SIZE': 50
-
+    'PAGE_SIZE': 50,
+    'DEFAULT_THROTTLE_RATES': {
+        'newsletter': '30/hour',
+    },
 }
 
 WSGI_APPLICATION = "core.wsgi.application"
+ASGI_APPLICATION = "core.asgi.application"
+
+# WebSocket / real-time chat (dev: in-memory; prod: use Redis channel layer)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'lms_db',
-        'USER': 'myuser',
-        'PASSWORD': 'mypassword',
-        'HOST': '127.0.0.1', # or 'db' if using Docker
-        'PORT': '5432',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "lms_db",
+        "USER": "myuser",
+        "PASSWORD": "mypassword",
+        "HOST": "127.0.0.1",  # or 'db' if using Docker
+        "PORT": "5432",
+        # Reuse connections under load (set DB_CONN_MAX_AGE=0 to disable).
+        "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
     }
 }
 
@@ -177,11 +196,14 @@ USE_TZ = True
 
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=2),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'CHECK_REVOCATION_LOG': True,
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "CHECK_REVOCATION_LOG": True,
+    # Claim used by Next.js (`user_id`) and WebSocket auth middleware
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
 }
 
 # Static files (CSS, JavaScript, Images)
@@ -196,7 +218,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
-CORS_ALLOWED_ORIGINS = ["*"]
+# django-cors-headers: use full origins ( "*" is not valid for CORS_ALLOWED_ORIGINS ).
+# Cannot combine CORS_ALLOW_ALL_ORIGINS with CORS_ALLOW_CREDENTIALS=True (browser spec).
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
 
 
 # AWS / RustFS Settings

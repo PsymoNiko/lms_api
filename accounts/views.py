@@ -1,11 +1,18 @@
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import generics
+from rest_framework import generics, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from  rest_framework import status, viewsets
-from accounts.models import CustomUser
-from accounts.serializer import RegisterSerializer, ProfileSerializer, UserSerializer, AvatarUpdateSerializer
+
+from .access import me_payload
+from .models import CustomUser
+from .permissions import IsPlatformAdmin
+from .serializer import (
+    AvatarUpdateSerializer,
+    ProfileSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -49,8 +56,20 @@ class ProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user.profile
 
 
+class CurrentUserMeView(APIView):
+    """
+    JWT: identity + role-wide access flags for the frontend (menus, routes, feature gates).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(me_payload(request.user))
+
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
+    permission_classes = [IsPlatformAdmin]
 
     def get_serializer_class(self):
         if self.action == 'create':
